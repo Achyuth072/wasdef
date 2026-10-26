@@ -1,71 +1,167 @@
-import { useState, useEffect } from 'react'
-import { Container, Title, Text, Badge, Group, Stack, Card, Loader, Paper} from '@mantine/core'
-import { DatePickerInput } from '@mantine/dates'
-import { IconWind, IconActivity } from '@tabler/icons-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Container, Stack, Alert, Loader, Center, Text, Group, Paper } from '@mantine/core'
+import { IconAlertCircle } from '@tabler/icons-react'
 
-interface HealthResponse {
-  status: string
-  service: string
-}
+import type { ForecastsResponse, PresetItem, AlignedRecord } from './types/api'
+import { fetchHealth, fetchPresets, fetchForecasts } from './api/client'
+import { Header } from './components/Header'
+import { ControlBar } from './components/ControlBar'
+import { KpiCards } from './components/KpiCards'
+import { RiskBar } from './components/RiskBar'
+import { TimeSeriesChart } from './components/charts/TimeSeriesChart'
+import { ImbalanceChart } from './components/charts/ImbalanceChart'
+import { DiurnalChart } from './components/charts/DiurnalChart'
+import { DataTable } from './components/DataTable'
 
 export default function App() {
-  const [health, setHealth] = useState<HealthResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [healthStatus, setHealthStatus] = useState<string>('connecting')
+  const [presets, setPresets] = useState<PresetItem[]>([])
+  const [selectedPreset, setSelectedPreset] = useState<string>('epex_60')
+  const [cutoffTime, setCutoffTime] = useState<string>('09:20')
+  const [startDate, setStartDate] = useState<string>('2026-01-01')
+  const [endDate, setEndDate] = useState<string>('2026-01-31')
+
+  const [forecastData, setForecastData] = useState<ForecastsResponse | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [hoveredRecord, setHoveredRecord] = useState<AlignedRecord | null>(null)
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data: HealthResponse) => setHealth(data))
-      .catch((err) => console.error('Failed to fetch health status', err))
-      .finally(() => setLoading(false))
+    async function init() {
+      try {
+        const [healthRes, presetsRes] = await Promise.all([
+          fetchHealth().catch(() => ({ status: 'offline', service: 'wind-forecast-portal' })),
+          fetchPresets().catch(() => null),
+        ])
+
+        setHealthStatus(healthRes.status)
+
+        if (presetsRes) {
+          setPresets(presetsRes.presets)
+          setSelectedPreset(presetsRes.default_preset)
+          setCutoffTime(presetsRes.default_cutoff_time)
+          if (presetsRes.default_date_range) {
+            setStartDate(presetsRes.default_date_range.start_date)
+            setEndDate(presetsRes.default_date_range.end_date)
+          }
+        }
+      } catch (err: unknown) {
+        console.error('Portal initialization failed:', err)
+      }
+    }
+    init()
   }, [])
 
+  const loadForecastData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchForecasts({
+        startDate,
+        endDate,
+        cutoffTime: selectedPreset === 'custom' ? cutoffTime : undefined,
+        preset: selectedPreset !== 'custom' ? selectedPreset : undefined,
+      })
+      setForecastData(data)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to retrieve forecast data from API.'
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }, [startDate, endDate, selectedPreset, cutoffTime])
+
+  useEffect(() => {
+    loadForecastData()
+  }, [loadForecastData])
+
+  const handleDateRangeChange = (start: string, end: string) => {
+    setStartDate(start)
+    setEndDate(end)
+  }
+
   return (
-    <Container size="lg" py="xl">
+    <Container size="xl" py="lg">
       <Stack gap="lg">
-        <Group justify="space-between" align="center">
-          <Group gap="xs">
-            <IconWind size={32} color="#20c997" />
-            <div>
-              <Title order={2}>UK Wind Forecast & Procurement Portal</Title>
-              <Text size="sm" c="dimmed">
-                January 2026 Day-Ahead Procurement & Gate Closure Accuracy Analysis
-              </Text>
-            </div>
-          </Group>
-          <Badge
-            color={health?.status === 'healthy' ? 'teal' : 'yellow'}
-            variant="light"
-            size="lg"
-            leftSection={<IconActivity size={16} />}
+        <Header
+          healthStatus={healthStatus}
+          loading={loading}
+          totalRecords={forecastData?.records.length}
+        />
+
+        <ControlBar
+          presets={presets}
+          selectedPreset={selectedPreset}
+          cutoffTime={cutoffTime}
+          startDate={startDate}
+          endDate={endDate}
+          loading={loading}
+          onPresetChange={setSelectedPreset}
+          onCutoffChange={setCutoffTime}
+          onDateRangeChange={handleDateRangeChange}
+          onRefresh={loadForecastData}
+        />
+
+        {error && (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Data Query Error"
+            color="red"
+            variant="filled"
           >
-            {loading ? <Loader size="xs" /> : health?.status ?? 'connecting'}
-          </Badge>
-        </Group>
+            {error}
+          </Alert>
+        )}
 
-        <Card withBorder radius="md" p="md">
-          <Group justify="space-between" align="center">
-            <div>
-              <Text fw={600}>Delivery Day</Text>
-              <Text size="xs" c="dimmed">
-                Configured with Mantine Dates for January 2026
+        {loading && !forecastData && (
+          <Center py="xl">
+            <Stack align="center" gap="xs">
+              <Loader color="teal" size="lg" />
+              <Text size="sm" c="dimmed">
+                Aligning January 2026 Day-Ahead snapshots from Elexon BMRS...
               </Text>
-            </div>
-            <DatePickerInput
-              placeholder="Pick delivery day"
-              value={selectedDate}
-              onChange={setSelectedDate}
-              clearable
-              w={240}
-            />
-          </Group>
-        </Card>
+            </Stack>
+          </Center>
+        )}
 
-        <Paper p="md" withBorder radius="md">
-          <Text size="sm" c="dimmed">
-            Backend ingestion pipeline initialized with Elexon BMRS FUELHH & WINDFOR datasets.
-          </Text>
+        {forecastData && (
+          <Stack gap="lg">
+            <KpiCards metrics={forecastData.metrics} />
+
+            <RiskBar
+              riskQuantiles={forecastData.risk_quantiles}
+              deficitPeriods={forecastData.metrics.deficit_periods}
+              surplusPeriods={forecastData.metrics.surplus_periods}
+              totalPeriods={forecastData.metrics.total_periods}
+            />
+
+            <TimeSeriesChart
+              records={forecastData.records}
+              hoveredRecord={hoveredRecord}
+              onHoverRecord={setHoveredRecord}
+            />
+
+            <ImbalanceChart
+              records={forecastData.records}
+              hoveredRecord={hoveredRecord}
+              onHoverRecord={setHoveredRecord}
+            />
+
+            <DiurnalChart diurnalProfile={forecastData.diurnal_profile} />
+
+            <DataTable records={forecastData.records} />
+          </Stack>
+        )}
+
+        <Paper p="sm" withBorder radius="md" bg="var(--mantine-color-dark-8)">
+          <Group justify="space-between" align="center" wrap="wrap">
+            <Text size="xs" c="dimmed">
+              GB Wind Forecast & Day-Ahead Procurement Portal • Physical Electricity Market January 2026
+            </Text>
+            <Text size="xs" c="dimmed">
+              Elexon BMRS FUELHH & WINDFOR streams • Built for Power Traders & Utilities
+            </Text>
+          </Group>
         </Paper>
       </Stack>
     </Container>

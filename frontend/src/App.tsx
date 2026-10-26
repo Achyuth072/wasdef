@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Container, Stack, Alert, Loader, Center, Text, Group, Paper } from '@mantine/core'
-import { IconAlertCircle } from '@tabler/icons-react'
+import {
+  Container,
+  Stack,
+  Alert,
+  Loader,
+  Center,
+  Text,
+  Group,
+  Paper,
+  Tabs,
+  SimpleGrid,
+  Badge,
+} from '@mantine/core'
+import {
+  IconAlertCircle,
+  IconChartLine,
+  IconChartBar,
+  IconTable,
+} from '@tabler/icons-react'
 
 import type { ForecastsResponse, PresetItem, AlignedRecord } from './types/api'
 import { fetchHealth, fetchPresets, fetchForecasts } from './api/client'
@@ -25,6 +42,7 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [hoveredRecord, setHoveredRecord] = useState<AlignedRecord | null>(null)
+  const [activeTab, setActiveTab] = useState<string | null>('overview')
 
   useEffect(() => {
     async function init() {
@@ -81,8 +99,8 @@ export default function App() {
   }
 
   return (
-    <Container size="xl" py="lg">
-      <Stack gap="lg">
+    <Container fluid px={{ base: 'md', md: 'xl' }} py="lg">
+      <Stack gap="md">
         <Header
           healthStatus={healthStatus}
           loading={loading}
@@ -125,31 +143,75 @@ export default function App() {
         )}
 
         {forecastData && (
-          <Stack gap="lg">
+          <Stack gap="md">
             <KpiCards metrics={forecastData.metrics} />
 
-            <RiskBar
-              riskQuantiles={forecastData.risk_quantiles}
-              deficitPeriods={forecastData.metrics.deficit_periods}
-              surplusPeriods={forecastData.metrics.surplus_periods}
-              totalPeriods={forecastData.metrics.total_periods}
-            />
+            <Tabs
+              value={activeTab}
+              onChange={setActiveTab}
+              color="teal"
+              variant="outline"
+              radius="md"
+            >
+              <Tabs.List mb="md">
+                <Tabs.Tab value="overview" leftSection={<IconChartLine size={16} />}>
+                  Generation & Forecast
+                </Tabs.Tab>
+                <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+                  Imbalance & Diurnal Analytics
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="table"
+                  leftSection={<IconTable size={16} />}
+                  rightSection={
+                    <Badge size="xs" variant="light" color="teal">
+                      {forecastData.records.length}
+                    </Badge>
+                  }
+                >
+                  Settlement Records
+                </Tabs.Tab>
+              </Tabs.List>
 
-            <TimeSeriesChart
-              records={forecastData.records}
-              hoveredRecord={hoveredRecord}
-              onHoverRecord={setHoveredRecord}
-            />
+              <Tabs.Panel value="overview">
+                <Stack gap="md">
+                  <RiskBar
+                    riskQuantiles={forecastData.risk_quantiles}
+                    deficitPeriods={forecastData.metrics.deficit_periods}
+                    surplusPeriods={forecastData.metrics.surplus_periods}
+                    totalPeriods={forecastData.metrics.total_periods}
+                  />
+                  <TimeSeriesChart
+                    records={forecastData.records}
+                    hoveredRecord={hoveredRecord}
+                    onHoverRecord={setHoveredRecord}
+                  />
+                </Stack>
+              </Tabs.Panel>
 
-            <ImbalanceChart
-              records={forecastData.records}
-              hoveredRecord={hoveredRecord}
-              onHoverRecord={setHoveredRecord}
-            />
+              <Tabs.Panel value="analytics">
+                <Stack gap="md">
+                  <RiskBar
+                    riskQuantiles={forecastData.risk_quantiles}
+                    deficitPeriods={forecastData.metrics.deficit_periods}
+                    surplusPeriods={forecastData.metrics.surplus_periods}
+                    totalPeriods={forecastData.metrics.total_periods}
+                  />
+                  <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+                    <ImbalanceChart
+                      records={forecastData.records}
+                      hoveredRecord={hoveredRecord}
+                      onHoverRecord={setHoveredRecord}
+                    />
+                    <DiurnalChart diurnalProfile={forecastData.diurnal_profile} />
+                  </SimpleGrid>
+                </Stack>
+              </Tabs.Panel>
 
-            <DiurnalChart diurnalProfile={forecastData.diurnal_profile} />
-
-            <DataTable records={forecastData.records} />
+              <Tabs.Panel value="table">
+                <DataTable records={forecastData.records} defaultOpen={true} />
+              </Tabs.Panel>
+            </Tabs>
           </Stack>
         )}
 

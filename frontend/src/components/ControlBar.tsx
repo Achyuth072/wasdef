@@ -220,8 +220,8 @@ export function ControlBar({
 
         {/* Custom Cutoff Slider Scrubbing */}
         {showSlider && (
-          <Card withBorder radius="sm" p="xs" bg="var(--mantine-color-dark-7)">
-            <Group justify="space-between" mb="xs">
+          <Card withBorder radius="sm" p="sm" pb="xl" bg="var(--mantine-color-dark-7)">
+            <Group justify="space-between" mb="sm">
               <Text size="xs" fw={600} c="teal">
                 Scrub Cutoff Time on D-1: <strong>{cutoffTime} GMT</strong>
               </Text>
@@ -238,6 +238,13 @@ export function ControlBar({
               marks={SLIDER_MARKS}
               color="teal"
               label={minutesToTimeString}
+              mb="md"
+              styles={{
+                markLabel: {
+                  fontSize: '0.72rem',
+                  marginTop: 6,
+                },
+              }}
             />
           </Card>
         )}

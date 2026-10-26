@@ -3,6 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.config import router as config_router
+from app.api.forecasts import router as forecasts_router
+
 app = FastAPI(
     title="Wind Forecast & Procurement Portal API",
     version="1.0.0",
@@ -16,6 +19,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(config_router)
+app.include_router(forecasts_router)
 
 
 @app.get("/api/health")

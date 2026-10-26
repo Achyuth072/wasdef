@@ -40,6 +40,7 @@ htmlcov/
 
 # SQLite Cache & local data (can be re-seeded via seed_data script)
 data/*.db
+!data/elexon_cache.db
 data/*.db-wal
 data/*.db-shm
 data/*.db-journal

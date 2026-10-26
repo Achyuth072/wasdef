@@ -10,7 +10,10 @@ class StorageEngine:
 
     def __init__(self, db_path: Path | str = "data/elexon_cache.db"):
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -19,25 +22,29 @@ class StorageEngine:
         return conn
 
     def _init_db(self) -> None:
-        with self._get_connection() as conn:
-            conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS actuals (
-                    start_time TEXT PRIMARY KEY,
-                    settlement_date TEXT NOT NULL,
-                    settlement_period INTEGER NOT NULL,
-                    generation_mw REAL NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS forecasts (
-                    start_time TEXT NOT NULL,
-                    publish_time TEXT NOT NULL,
-                    generation_mw REAL NOT NULL,
-                    PRIMARY KEY (start_time, publish_time)
-                );
-                CREATE INDEX IF NOT EXISTS idx_actuals_date ON actuals(settlement_date);
-                CREATE INDEX IF NOT EXISTS idx_forecasts_start_pub ON forecasts(start_time, publish_time);
-                """
-            )
+        try:
+            with self._get_connection() as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS actuals (
+                        start_time TEXT PRIMARY KEY,
+                        settlement_date TEXT NOT NULL,
+                        settlement_period INTEGER NOT NULL,
+                        generation_mw REAL NOT NULL
+                    );
+                    CREATE TABLE IF NOT EXISTS forecasts (
+                        start_time TEXT NOT NULL,
+                        publish_time TEXT NOT NULL,
+                        generation_mw REAL NOT NULL,
+                        PRIMARY KEY (start_time, publish_time)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_actuals_date ON actuals(settlement_date);
+                    CREATE INDEX IF NOT EXISTS idx_forecasts_start_pub ON forecasts(start_time, publish_time);
+                    """
+                )
+        except sqlite3.OperationalError:
+            # Pre-populated in read-only environments (e.g., Vercel Serverless / Lambda)
+            pass
 
     def save_actuals(self, records: list[ActualRecord]) -> int:
         if not records:

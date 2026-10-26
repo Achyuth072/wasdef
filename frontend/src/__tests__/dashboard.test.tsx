@@ -128,6 +128,44 @@ describe('ControlBar component', () => {
     fireEvent.click(week1Badge)
     expect(onDateRangeChange).toHaveBeenCalledWith('2026-01-01', '2026-01-07')
   })
+
+  it('toggles cutoff slider and renders readable marks with vertical staggering', () => {
+    const onPresetChange = vi.fn()
+    const onCutoffChange = vi.fn()
+
+    renderWithMantine(
+      <ControlBar
+        presets={mockPresets}
+        selectedPreset="custom"
+        cutoffTime="09:20"
+        startDate="2026-01-01"
+        endDate="2026-01-31"
+        loading={false}
+        onPresetChange={onPresetChange}
+        onCutoffChange={onCutoffChange}
+        onDateRangeChange={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    )
+
+    // Toggle slider visibility
+    const toggleButton = screen.getByRole('button', { name: /cutoff slider/i })
+    fireEvent.click(toggleButton)
+
+    // All marks are rendered
+    expect(screen.getByText('09:20 EPEX')).toBeInTheDocument()
+    expect(screen.getByText('09:50 NordPool')).toBeInTheDocument()
+    expect(screen.getByText('14:30 30m')).toBeInTheDocument()
+    expect(screen.getByText('18:00 EOD')).toBeInTheDocument()
+
+    // 09:50 NordPool has translateY styling to stagger it below 09:20 EPEX
+    const nordPoolLabel = screen.getByText('09:50 NordPool')
+    expect(nordPoolLabel).toHaveStyle({ transform: 'translateY(18px)' })
+
+    // Clicking a mark updates cutoff time
+    fireEvent.click(nordPoolLabel)
+    expect(onCutoffChange).toHaveBeenCalledWith('09:50')
+  })
 })
 
 describe('DataTable component', () => {

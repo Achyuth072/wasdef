@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Card,
   Group,
@@ -45,9 +45,15 @@ const QUICK_DATES = [
   { label: 'Calm Spell (20–22)', start: '2026-01-20', end: '2026-01-22' },
 ] as const
 
-const SLIDER_MARKS = [
+interface SliderMarkDef {
+  value: number
+  label: string
+  staggered?: boolean
+}
+
+const SLIDER_MARK_DEFS: SliderMarkDef[] = [
   { value: 560, label: '09:20 EPEX' },
-  { value: 590, label: '09:50 NordPool' },
+  { value: 590, label: '09:50 NordPool', staggered: true },
   { value: 870, label: '14:30 30m' },
   { value: 1080, label: '18:00 EOD' },
 ]
@@ -109,12 +115,48 @@ export function ControlBar({
     }
   }
 
-  const handleSliderChange = (minutes: number) => {
-    onCutoffChange(minutesToTimeString(minutes))
-    if (selectedPreset !== 'custom') {
-      onPresetChange('custom')
-    }
-  }
+  const handleSliderChange = useCallback(
+    (minutes: number) => {
+      onCutoffChange(minutesToTimeString(minutes))
+      if (selectedPreset !== 'custom') {
+        onPresetChange('custom')
+      }
+    },
+    [onCutoffChange, onPresetChange, selectedPreset]
+  )
+
+  const cutoffMinutes = timeStringToMinutes(cutoffTime)
+
+  const sliderMarks = useMemo(
+    () =>
+      SLIDER_MARK_DEFS.map((mark) => {
+        const isActive = cutoffMinutes === mark.value
+        return {
+          value: mark.value,
+          label: (
+            <span
+              style={{
+                display: 'inline-block',
+                whiteSpace: 'nowrap',
+                transform: mark.staggered ? 'translateY(18px)' : undefined,
+                color: isActive ? 'var(--mantine-color-teal-4)' : undefined,
+                fontWeight: isActive ? 700 : 500,
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                transition: 'color 150ms ease',
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSliderChange(mark.value)
+              }}
+            >
+              {mark.label}
+            </span>
+          ),
+        }
+      }),
+    [cutoffMinutes, handleSliderChange]
+  )
 
   const presetOptions = [
     ...presets.map((p) => ({
@@ -123,8 +165,6 @@ export function ControlBar({
     })),
     { label: 'Custom Cutoff', value: 'custom' },
   ]
-
-  const cutoffMinutes = timeStringToMinutes(cutoffTime)
 
   return (
     <Card withBorder radius="md" p="md" shadow="sm">
@@ -192,6 +232,7 @@ export function ControlBar({
                 />
                 <Tooltip label={showSlider ? 'Hide cutoff slider' : 'Show cutoff slider'}>
                   <ActionIcon
+                    aria-label={showSlider ? 'Hide cutoff slider' : 'Show cutoff slider'}
                     variant={showSlider ? 'filled' : 'light'}
                     color="teal"
                     size="lg"
@@ -235,10 +276,10 @@ export function ControlBar({
               min={360}
               max={1320}
               step={10}
-              marks={SLIDER_MARKS}
+              marks={sliderMarks}
               color="teal"
               label={minutesToTimeString}
-              mb="md"
+              mb={28}
               styles={{
                 markLabel: {
                   fontSize: '0.72rem',
